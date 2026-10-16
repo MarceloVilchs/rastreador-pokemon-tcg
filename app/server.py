@@ -2,6 +2,7 @@
 
 Uso:  python -m uvicorn app.server:app --port 8000   (o doble clic en iniciar.bat)
 """
+import json
 import os
 import subprocess
 import sys
@@ -13,8 +14,15 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from app.db import conectar
+from app.sobres import estimar_sobres
 
 RAIZ = Path(__file__).resolve().parent.parent
+TEMA_CON_SOBRES = "Pokémon TCG"
+
+
+def _temas() -> list[dict]:
+    conf = json.loads((RAIZ / "config.json").read_text(encoding="utf-8"))
+    return [{"id": t["id"], "nombre": t["nombre"]} for t in conf["temas"] if t.get("activo")]
 app = FastAPI(title="Rastreador Pokémon TCG")
 _proceso: subprocess.Popen | None = None
 
@@ -45,11 +53,15 @@ def _fila(r) -> dict:
     d["en_oferta"] = bool(d["precio_normal"] and d["precio_normal"] > d["precio"])
     d["es_minimo"] = d["dias"] > 1 and d["precio"] <= d["minimo"]
     d["cambio"] = d["precio"] - d["precio_previo"] if d["precio_previo"] else 0
+    sobres, estimado = estimar_sobres(d["nombre"], d["categoria"]) if d["tema"] == TEMA_CON_SOBRES else (None, False)
+    d["sobres"], d["sobres_estimado"] = sobres, estimado
+    d["precio_sobre"] = round(d["precio"] / sobres) if sobres else None
+    d["precio_sobre_tarjeta"] = round(d["precio_tarjeta"] / sobres) if sobres and d["precio_tarjeta"] else None
     return d
 
 
 @app.get("/api/productos")
-def productos(q: str = "", tienda: str = "", categoria: str = "", idioma: str = "",
+def productos(q: str = "", tema: str = "", tienda: str = "", categoria: str = "", idioma: str = "",
               ofertas: bool = False, marcados: bool = False, aniversario: bool = False,
               solo_vigentes: bool = True, precio_max: int = 0, orden: str = "precio"):
     sql, args = CONSULTA + " WHERE 1=1", []
@@ -57,7 +69,7 @@ def productos(q: str = "", tienda: str = "", categoria: str = "", idioma: str = 
         for palabra in q.lower().split():
             sql += " AND lower(p.nombre) LIKE ?"
             args.append(f"%{palabra}%")
-    for campo, valor in (("p.tienda", tienda), ("p.categoria", categoria), ("p.idioma", idioma)):
+    for campo, valor in (("p.tema", tema), ("p.tienda", tienda), ("p.categoria", categoria), ("p.idioma", idioma)):
         if valor:
             sql += f" AND {campo} = ?"
             args.append(valor)
@@ -77,6 +89,8 @@ def productos(q: str = "", tienda: str = "", categoria: str = "", idioma: str = 
     con.close()
     claves = {
         "precio": lambda d: d["mejor_precio"],
+        # los que no tienen sobres conocidos van al final
+        "precio_sobre": lambda d: (d["precio_sobre"] is None, d["precio_sobre"] or 0),
         "precio_desc": lambda d: -d["mejor_precio"],
         "descuento": lambda d: -d["descuento_pct"],
         "cambio": lambda d: d["cambio"],
@@ -97,7 +111,10 @@ def historial(pid: int):
         "SELECT fecha, precio, precio_normal, precio_tarjeta FROM precios WHERE producto_id = ? ORDER BY fecha",
         (pid,))]
     con.close()
-    return {"producto": dict(prod), "puntos": puntos}
+    p = dict(prod)
+    p["sobres"], p["sobres_estimado"] = (estimar_sobres(p["nombre"], p["categoria"])
+                                         if p["tema"] == TEMA_CON_SOBRES else (None, False))
+    return {"producto": p, "puntos": puntos}
 
 
 class Marca(BaseModel):
@@ -116,18 +133,21 @@ def marcar(pid: int, m: Marca):
 
 
 @app.get("/api/resumen")
-def resumen():
+def resumen(tema: str = ""):
     con = conectar()
+    filtro, args = ("WHERE tema = ?", (tema,)) if tema else ("", ())
+    y = "AND" if tema else "WHERE"
     r = {
-        "tiendas": [x[0] for x in con.execute("SELECT DISTINCT tienda FROM productos ORDER BY 1")],
-        "categorias": [x[0] for x in con.execute("SELECT DISTINCT categoria FROM productos ORDER BY 1")],
-        "total": con.execute("SELECT COUNT(*) FROM productos").fetchone()[0],
-        "marcados": con.execute("SELECT COUNT(*) FROM productos WHERE marcado = 1").fetchone()[0],
+        "temas": _temas(),
+        "tiendas": [x[0] for x in con.execute(f"SELECT DISTINCT tienda FROM productos {filtro} ORDER BY 1", args)],
+        "categorias": [x[0] for x in con.execute(f"SELECT DISTINCT categoria FROM productos {filtro} ORDER BY 1", args)],
+        "total": con.execute(f"SELECT COUNT(*) FROM productos {filtro}", args).fetchone()[0],
+        "marcados": con.execute(f"SELECT COUNT(*) FROM productos {filtro} {y} marcado = 1", args).fetchone()[0],
         "ultima": dict(x) if (x := con.execute(
             "SELECT * FROM ejecuciones ORDER BY id DESC LIMIT 1").fetchone()) else None,
         "alertas": [dict(x) for x in con.execute(
-            """SELECT a.*, p.nombre, p.tienda, p.url FROM alertas a JOIN productos p ON p.id = a.producto_id
-               ORDER BY a.id DESC LIMIT 30""")],
+            f"""SELECT a.*, p.nombre, p.tienda, p.url FROM alertas a JOIN productos p ON p.id = a.producto_id
+               {filtro.replace('tema', 'p.tema')} ORDER BY a.id DESC LIMIT 30""", args)],
         "actualizando": _proceso is not None and _proceso.poll() is None,
     }
     con.close()

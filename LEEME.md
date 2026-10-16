@@ -16,7 +16,16 @@ Rastrea precios de cartas Pokémon (ETB, boosters, tins, colecciones, 30 anivers
 | Vigilancia rápida (solo pág. 1, para detectar bajas) | Botón **⚡ Vigilar ahora** o `vigilar.bat` |
 | Automatizar (diario + cada 30 min) | Clic derecho en `programar_tareas.ps1` → *Ejecutar con PowerShell* |
 
-En la página: haz clic en ☆ para **marcar** un producto y en la tarjeta para ver el **gráfico de precios**.
+En la página: haz clic en ☆ para **marcar** un producto y en la tarjeta para ver el **gráfico de precios**
+(rango 7 días / 30 días / todo, y comparación con hace 7 días).
+
+**Secciones** (menú de arriba): **🃏 Cartas Pokémon** y **🎮 Nintendo Switch 2** (solo la consola, sola o en pack
+con juego; se excluyen juegos sueltos y accesorios). Cada sección es un "tema" en `config.json`.
+
+**Precio por sobre** (solo Pokémon): se calcula con la cantidad de sobres del nombre ("36 sobres", "3-pack",
+"Pack de 10") o, si no viene, con el contenido típico del tipo (ETB 9, Booster Box 36, Bundle 6, Tin 4,
+Mini Tin 2, Build & Battle 4). En el modal, el `~` indica que es estimado. Lotes, mazos y colecciones variables
+no se calculan para no inventar. Ordena con **"Menor precio por sobre"**.
 
 ## Cómo evita bloqueos
 

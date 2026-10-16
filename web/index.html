@@ -20,6 +20,10 @@
                              url("/static/fondo-mascara.svg") center 60% / min(78vmin, 720px) no-repeat; }
   body::after { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
                 background: radial-gradient(ellipse at center, transparent 30%, var(--bg) 85%); }
+  .tabs { display: flex; gap: 4px; background: var(--panel); border: 1px solid var(--borde); border-radius: 10px; padding: 3px; }
+  .tabs button { border: 0; background: none; padding: 6px 14px; border-radius: 7px; color: var(--suave); font-weight: 600; }
+  .tabs button.activo { background: var(--acento); color: #1a1a1a; }
+  body:not(.tema-pokemon) .solo-pokemon { display: none; }
   .rangos { display: flex; gap: 6px; margin: 4px 0 8px; }
   .rangos button { padding: 4px 12px; font-size: 13px; }
   .rangos button.activo { background: var(--acento); color: #1a1a1a; border-color: var(--acento); font-weight: 600; }
@@ -88,7 +92,8 @@
 <body>
 <header>
   <div class="fila">
-    <h1><span class="bola"></span> Rastreador Pokémon TCG</h1>
+    <h1><span class="bola"></span> Rastreador de ofertas</h1>
+    <nav class="tabs" id="tabs" aria-label="Secciones"></nav>
     <span class="estado" id="estado">Cargando…</span>
     <button id="btnAlertas">🔔 Alertas</button>
     <button id="btnVigilar" title="Revisa la página 1 de las búsquedas clave (rápido)">⚡ Vigilar ahora</button>
@@ -98,10 +103,11 @@
     <input type="search" id="q" placeholder="Buscar: etb, 30th, booster box, mega…">
     <select id="tienda"><option value="">Todas las tiendas</option></select>
     <select id="categoria"><option value="">Todas las categorías</option></select>
-    <select id="idioma"><option value="">Cualquier idioma</option><option>Español</option><option>Inglés</option></select>
+    <select id="idioma" class="solo-pokemon"><option value="">Cualquier idioma</option><option>Español</option><option>Inglés</option></select>
     <input type="number" id="precio_max" placeholder="Precio máx." min="0" step="1000" style="width:120px">
     <select id="orden">
       <option value="precio">Menor precio</option>
+      <option value="precio_sobre" class="solo-pokemon">Menor precio por sobre</option>
       <option value="descuento">Mayor descuento</option>
       <option value="cambio">Mayor baja reciente</option>
       <option value="reciente">Más nuevos</option>
@@ -109,7 +115,7 @@
       <option value="nombre">Nombre</option>
     </select>
     <label class="chk"><input type="checkbox" id="ofertas"> Solo ofertas</label>
-    <label class="chk"><input type="checkbox" id="aniversario"> 30 aniversario</label>
+    <label class="chk solo-pokemon"><input type="checkbox" id="aniversario"> 30 aniversario</label>
     <label class="chk"><input type="checkbox" id="marcados"> ★ Marcados</label>
   </div>
 </header>
@@ -141,31 +147,53 @@ const COLORES = { falabella: 'var(--falabella)', paris: 'var(--paris)', ripley: 
 const NOMBRES = { falabella: 'Falabella', paris: 'Paris', ripley: 'Ripley', lider: 'Líder' };
 const FILTROS = ['q', 'tienda', 'categoria', 'idioma', 'precio_max', 'orden', 'ofertas', 'aniversario', 'marcados'];
 let grafico = null, temporizador = null;
+const POKEMON = 'Pokémon TCG';
+const PLACEHOLDER = { [POKEMON]: 'Buscar: etb, 30th, booster box, mega…', 'Nintendo Switch 2': 'Buscar: mario kart, pokémon, pack…' };
+let temaActual = POKEMON;
+try { temaActual = localStorage.getItem('tema') || POKEMON; } catch (e) {}
 
+// Los filtros se recuerdan por separado en cada sección.
 function leerFiltros() {
   const p = new URLSearchParams();
   for (const f of FILTROS) {
     const el = $(f);
     const v = el.type === 'checkbox' ? (el.checked ? 'true' : '') : el.value.trim();
-    if (v) p.set(f, v);
+    if (v && !(temaActual !== POKEMON && el.closest('.solo-pokemon'))) p.set(f, v);
   }
-  try { localStorage.setItem('filtros', p.toString()); } catch (e) {}
+  try { localStorage.setItem('filtros:' + temaActual, p.toString()); } catch (e) {}
+  p.set('tema', temaActual);
   return p;
 }
 
 function restaurarFiltros() {
   let guardado = '';
-  try { guardado = localStorage.getItem('filtros') || ''; } catch (e) {}
+  try { guardado = localStorage.getItem('filtros:' + temaActual) || ''; } catch (e) {}
   const p = new URLSearchParams(guardado);
   for (const f of FILTROS) {
-    if (!p.has(f)) continue;
     const el = $(f);
-    if (el.type === 'checkbox') el.checked = p.get(f) === 'true'; else { el.value = p.get(f); el.dataset.pendiente = p.get(f); }
+    if (el.type === 'checkbox') { el.checked = p.get(f) === 'true'; continue; }
+    el.value = p.get(f) || (f === 'orden' ? 'precio' : '');
+    el.dataset.pendiente = el.value;
   }
+  if ($('orden').selectedOptions[0]?.classList.contains('solo-pokemon') && temaActual !== POKEMON) $('orden').value = 'precio';
+  document.body.classList.toggle('tema-pokemon', temaActual === POKEMON);
+  $('q').placeholder = PLACEHOLDER[temaActual] || 'Buscar…';
+}
+
+function cambiarTema(nombre) {
+  if (nombre === temaActual) return;
+  temaActual = nombre;
+  try { localStorage.setItem('tema', nombre); } catch (e) {}
+  restaurarFiltros();
+  cargarResumen();
+  cargarProductos();
 }
 
 async function cargarResumen() {
-  const r = await fetch('/api/resumen').then(r => r.json());
+  const r = await fetch('/api/resumen?tema=' + encodeURIComponent(temaActual)).then(r => r.json());
+  $('tabs').innerHTML = r.temas.map(t =>
+    `<button data-tema="${t.nombre}" class="${t.nombre === temaActual ? 'activo' : ''}">${t.id === 'pokemon' ? '🃏 Cartas Pokémon' : '🎮 ' + t.nombre}</button>`).join('');
+  document.title = `Rastreador · ${temaActual}`;
   for (const [sel, lista, nombre] of [['tienda', r.tiendas, t => NOMBRES[t] || t], ['categoria', r.categorias, c => c]]) {
     const el = $(sel), actual = el.dataset.pendiente || el.value;
     el.length = 1;
@@ -259,8 +287,13 @@ function dibujar() {
       : `<b style="color:var(${dif < 0 ? '--verde' : '--rojo'})">${dif < 0 ? '▼' : '▲'} ${clp(Math.abs(dif))} (${pct > 0 ? '+' : ''}${pct}%)</b>`;
   }
   const etiquetaRango = rangoDias ? `${rangoDias} días` : 'todo';
+  const s = modalDatos.producto.sobres;
+  const porSobre = s ? `
+    <div class="stat" title="${s} sobre(s)${modalDatos.producto.sobres_estimado ? ', estimado según el tipo de producto' : ', según el nombre'}">
+      <span>Precio por sobre (${s}${modalDatos.producto.sobres_estimado ? ' ~' : ''})</span><b>${clp(Math.round(ult.precio / s))}</b>
+      ${ult.precio_tarjeta ? `<span>💳 ${clp(Math.round(ult.precio_tarjeta / s))}</span>` : ''}</div>` : '';
   $('mStats').innerHTML = `
-    <div class="stat"><span>Actual</span><b>${clp(ult.precio)}</b></div>
+    <div class="stat"><span>Actual</span><b>${clp(ult.precio)}</b></div>${porSobre}
     <div class="stat"><span>vs. hace 7 días</span>${comp}</div>
     <div class="stat"><span>Mínimo (${etiquetaRango})</span><b style="color:var(--verde)">${clp(min)}</b></div>
     <div class="stat"><span>Máximo (${etiquetaRango})</span><b style="color:var(--rojo)">${clp(max)}</b></div>
@@ -318,6 +351,10 @@ $('grilla').addEventListener('click', e => {
   if (b) { e.stopPropagation(); return marcar(b.dataset.marcar, b); }
   const c = e.target.closest('.card');
   if (c) abrirModal(c.dataset.id);
+});
+$('tabs').addEventListener('click', e => {
+  const b = e.target.closest('[data-tema]');
+  if (b) cambiarTema(b.dataset.tema);
 });
 $('mRangos').addEventListener('click', e => {
   const b = e.target.closest('button');

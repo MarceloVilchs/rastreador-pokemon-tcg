@@ -152,7 +152,8 @@ def pasa_filtro(nombre: str, tema: dict) -> bool:
     n = _norm(nombre)
     return (
         any(k in n for k in tema["debe_contener_alguna"])
-        and any(k in n for k in tema["y_alguna_de"])
+        and ("y_alguna_de" not in tema or any(k in n for k in tema["y_alguna_de"]))
+        and ("regex_incluir" not in tema or any(re.search(rx, n) for rx in tema["regex_incluir"]))
         and not any(re.search(r"\b" + re.escape(k) + r"\b", n) for k in tema["excluir"])
     )
 
@@ -171,8 +172,11 @@ CATEGORIAS = [
 ]
 
 
-def clasificar(nombre: str) -> dict:
+def clasificar(nombre: str, tema: dict | None = None) -> dict:
     n = _norm(nombre)
+    if tema and tema.get("categorias"):  # el tema trae sus propias categorías (ej. Switch 2)
+        categoria = next((c for c, rx in tema["categorias"] if re.search(rx, n)), "Otros")
+        return {"categoria": categoria, "idioma": None, "aniversario30": 0}
     categoria = next((c for c, rx in CATEGORIAS if re.search(rx, n)), "Otros")
     if re.search(r"espa[ñn]|\besp\b|castellano", n):
         idioma = "Español"
@@ -194,7 +198,7 @@ def reclasificar(con, log=print) -> None:
             con.execute("DELETE FROM productos WHERE id = ?", (r["id"],))
             borrados += 1
             continue
-        c = clasificar(r["nombre"])
+        c = clasificar(r["nombre"], tema)
         con.execute("UPDATE productos SET categoria = ?, idioma = ?, aniversario30 = ? WHERE id = ?",
                     (c["categoria"], c["idioma"], c["aniversario30"], r["id"]))
     con.commit()
@@ -278,7 +282,8 @@ def enviar_alertas(con, pendientes: list[dict], log) -> int:
     if len(pendientes) > 25:
         lineas_txt.append(f"...y {len(pendientes) - 25} más (revisa la página)")
         lineas_html.append(f"<i>...y {len(pendientes) - 25} más (revisa la página)</i>")
-    titulo = f"Pokémon TCG: {len(pendientes)} alerta(s) de precio"
+    temas = " + ".join(dict.fromkeys(a["tema"] for a in pendientes))
+    titulo = f"{temas}: {len(pendientes)} alerta(s) de precio"
     canales = enviar(titulo, titulo + "\n\n" + "\n\n".join(lineas_txt),
                      f"<b>{titulo}</b>\n\n" + "\n\n".join(lineas_html))
     for a in pendientes:
@@ -291,16 +296,16 @@ def enviar_alertas(con, pendientes: list[dict], log) -> int:
 
 # --- Ejecución ---
 
-def ejecutar(tiendas: list[str], modo: str = "completo", ver: bool = False, log=print) -> dict:
+def ejecutar(tiendas: list[str], modo: str = "completo", ver: bool = False, log=print,
+             solo_tema: str | None = None) -> dict:
     con = conectar()
     conf_alertas = cargar_config_alertas()
     inicio = datetime.now().isoformat(timespec="seconds")
     resumen = {}
     pendientes = []
-    if modo == "vigilancia":
-        busquedas_modo, paginas = CONFIG["vigilancia"]["busquedas"], CONFIG["vigilancia"]["paginas"]
-    else:
-        busquedas_modo, paginas = None, CONFIG["paginas_max_por_busqueda"]
+    vigilancia = modo == "vigilancia"
+    paginas = CONFIG["paginas_vigilancia"] if vigilancia else CONFIG["paginas_max_por_busqueda"]
+    temas = [t for t in CONFIG["temas"] if t.get("activo") and solo_tema in (None, t["id"])]
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=not ver)
         ctx = browser.new_context(
@@ -309,16 +314,18 @@ def ejecutar(tiendas: list[str], modo: str = "completo", ver: bool = False, log=
             viewport={"width": 1366, "height": 900},
         )
         page = ctx.new_page()
-        for tema in [t for t in CONFIG["temas"] if t.get("activo")]:
+        for tema in temas:
+            busquedas = tema.get("vigilancia", tema["busquedas"][:1]) if vigilancia else tema["busquedas"]
             for tienda in tiendas:
                 log(f"== {tienda} · {tema['nombre']} · {modo} ==")
+                # Primera pasada de esta tienda en este tema: todo sería "nuevo", así que no se avisa.
                 tenia_datos = con.execute(
-                    "SELECT 1 FROM productos WHERE tienda = ? LIMIT 1", (tienda,)
+                    "SELECT 1 FROM productos WHERE tienda = ? AND tema = ? LIMIT 1", (tienda, tema["nombre"])
                 ).fetchone() is not None
-                productos = raspar_tienda(page, tienda, tema, busquedas_modo or tema["busquedas"], paginas, log)
+                productos = raspar_tienda(page, tienda, tema, busquedas, paginas, log)
                 for prod in productos.values():
                     antes = guardar_producto(con, {
-                        **prod, **clasificar(prod["nombre"]),
+                        **prod, **clasificar(prod["nombre"], tema),
                         "tienda": tienda, "tema": tema["nombre"],
                     })
                     alertas = [
@@ -326,9 +333,11 @@ def ejecutar(tiendas: list[str], modo: str = "completo", ver: bool = False, log=
                         if not alerta_reciente(con, antes["id"], t, prod["precio"])
                     ]
                     if alertas:
-                        pendientes.append({"tienda": tienda, "prod": prod, "antes": antes, "alertas": alertas})
+                        pendientes.append({"tienda": tienda, "tema": tema["nombre"], "prod": prod,
+                                           "antes": antes, "alertas": alertas})
                 con.commit()
-                resumen[tienda] = resumen.get(tienda, 0) + len(productos)
+                clave = f"{tema['id']}:{tienda}"
+                resumen[clave] = resumen.get(clave, 0) + len(productos)
                 log(f"   -> {len(productos)} productos guardados")
         browser.close()
     if modo == "completo":
@@ -347,6 +356,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--tienda", choices=list(TIENDAS), action="append")
     ap.add_argument("--modo", choices=["completo", "vigilancia"], default="completo")
+    ap.add_argument("--tema", choices=[t["id"] for t in CONFIG["temas"]], help="solo este tema")
     ap.add_argument("--ver", action="store_true", help="mostrar el navegador")
     args = ap.parse_args()
-    print(ejecutar(args.tienda or CONFIG["tiendas_activas"], modo=args.modo, ver=args.ver))
+    print(ejecutar(args.tienda or CONFIG["tiendas_activas"], modo=args.modo, ver=args.ver, solo_tema=args.tema))
