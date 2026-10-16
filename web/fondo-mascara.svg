@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <!-- Ilustración original inspirada en una máscara con forma de corazón y púas (fan art, uso personal) -->
+  <defs>
+    <radialGradient id="cara" cx="50%" cy="40%" r="65%">
+      <stop offset="0" stop-color="#9b4fd1"/>
+      <stop offset=".7" stop-color="#5e2387"/>
+      <stop offset="1" stop-color="#2d0f45"/>
+    </radialGradient>
+    <linearGradient id="pua" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffe27a"/>
+      <stop offset=".5" stop-color="#f4a62a"/>
+      <stop offset="1" stop-color="#c8641a"/>
+    </linearGradient>
+    <radialGradient id="ojo" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#fff6a8"/>
+      <stop offset=".55" stop-color="#ffd23a"/>
+      <stop offset="1" stop-color="#e2731b"/>
+    </radialGradient>
+  </defs>
+  <g stroke="#1a0826" stroke-width="3" stroke-linejoin="round">
+    <!-- Púas -->
+    <path d="M118 120 L18 52 L96 160 Z" fill="url(#pua)"/>
+    <path d="M282 120 L382 52 L304 160 Z" fill="url(#pua)"/>
+    <path d="M96 178 L4 196 L100 222 Z" fill="url(#pua)"/>
+    <path d="M304 178 L396 196 L300 222 Z" fill="url(#pua)"/>
+    <path d="M112 246 L34 318 L138 272 Z" fill="url(#pua)"/>
+    <path d="M288 246 L366 318 L262 272 Z" fill="url(#pua)"/>
+    <path d="M168 96 L150 16 L196 92 Z" fill="url(#pua)"/>
+    <path d="M232 96 L250 16 L204 92 Z" fill="url(#pua)"/>
+    <!-- Corazón -->
+    <path d="M200 132 C176 82 96 82 96 158 C96 222 160 268 200 330 C240 268 304 222 304 158 C304 82 224 82 200 132 Z"
+          fill="url(#cara)"/>
+  </g>
+  <!-- Patrones de la cara -->
+  <g opacity=".9">
+    <path d="M128 150 Q150 120 178 146 L170 176 Q144 186 128 170 Z" fill="#f2a43a"/>
+    <path d="M272 150 Q250 120 222 146 L230 176 Q256 186 272 170 Z" fill="#f2a43a"/>
+    <path d="M150 210 L164 196 L178 210 L192 196 L200 206 L208 196 L222 210 L236 196 L250 210" fill="none"
+          stroke="#46c96b" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M172 236 L200 286 L228 236 Z" fill="#d8344a"/>
+    <path d="M186 108 L200 128 L214 108" fill="none" stroke="#46c96b" stroke-width="5" stroke-linecap="round"/>
+  </g>
+  <!-- Ojos -->
+  <g stroke="#1a0826" stroke-width="3">
+    <ellipse cx="152" cy="160" rx="22" ry="20" fill="url(#ojo)"/>
+    <ellipse cx="248" cy="160" rx="22" ry="20" fill="url(#ojo)"/>
+  </g>
+  <circle cx="155" cy="162" r="7" fill="#1a0826"/>
+  <circle cx="245" cy="162" r="7" fill="#1a0826"/>
+</svg>

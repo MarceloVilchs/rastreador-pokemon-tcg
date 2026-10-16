@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rastreador Pokémon TCG</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1220; --panel: #181c2e; --panel2: #20253b; --borde: #2c3250;
+    --texto: #e8eaf3; --suave: #9aa1bd; --acento: #ffcb05; --azul: #3d7dca;
+    --verde: #3ccf7a; --rojo: #ff5d6c;
+    --falabella: #aad500; --paris: #2f9bff; --ripley: #b264ff; --lider: #ffc220;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--texto); font: 14px/1.4 system-ui, "Segoe UI", sans-serif; }
+  /* Fondo: máscara detrás de todo; las tarjetas siguen sólidas. Si existe web/fondo.png, se usa esa imagen. */
+  body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: .24;
+                 background: url("/static/fondo.png") center / contain no-repeat,
+                             url("/static/fondo-mascara.svg") center 60% / min(78vmin, 720px) no-repeat; }
+  body::after { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+                background: radial-gradient(ellipse at center, transparent 30%, var(--bg) 85%); }
+  .rangos { display: flex; gap: 6px; margin: 4px 0 8px; }
+  .rangos button { padding: 4px 12px; font-size: 13px; }
+  .rangos button.activo { background: var(--acento); color: #1a1a1a; border-color: var(--acento); font-weight: 600; }
+  header { position: sticky; top: 0; z-index: 5; background: rgba(15,18,32,.95); backdrop-filter: blur(6px);
+           border-bottom: 1px solid var(--borde); padding: 12px 16px; }
+  .fila { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  h1 { font-size: 18px; margin: 0 auto 0 0; display: flex; gap: 8px; align-items: center; }
+  h1 .bola { width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(#ff3b3b 0 46%, #111 46% 54%, #fff 54%);
+             border: 2px solid #111; box-shadow: 0 0 0 1px #555; }
+  .estado { color: var(--suave); font-size: 12px; }
+  button, select, input { font: inherit; color: var(--texto); background: var(--panel2); border: 1px solid var(--borde);
+                          border-radius: 8px; padding: 7px 10px; }
+  button { cursor: pointer; }
+  button.prim { background: var(--acento); color: #1a1a1a; border-color: var(--acento); font-weight: 600; }
+  button:disabled { opacity: .5; cursor: wait; }
+  .filtros { margin-top: 10px; }
+  .filtros input[type=search] { flex: 1 1 220px; }
+  label.chk { display: flex; gap: 5px; align-items: center; color: var(--suave); cursor: pointer; user-select: none; }
+  main { padding: 16px; max-width: 1400px; margin: 0 auto; }
+  .contador { color: var(--suave); margin-bottom: 10px; }
+  .grilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+  .card { background: var(--panel); border: 1px solid var(--borde); border-radius: 12px; overflow: hidden; cursor: pointer;
+          display: flex; flex-direction: column; transition: transform .12s, border-color .12s; position: relative; }
+  .card:hover { transform: translateY(-2px); border-color: var(--azul); }
+  .card.marcado { border-color: var(--acento); }
+  .img { background: #fff; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; }
+  .img img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .tienda { position: absolute; top: 8px; left: 8px; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 6px;
+            color: #111; text-transform: uppercase; }
+  .estrella { position: absolute; top: 4px; right: 6px; font-size: 22px; background: none; border: 0; padding: 2px;
+              color: #bbb; text-shadow: 0 0 3px #000; }
+  .marcado .estrella { color: var(--acento); }
+  .info { padding: 10px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
+  .nombre { font-size: 13px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; min-height: 54px; }
+  .precio { font-size: 20px; font-weight: 700; }
+  .normal { color: var(--suave); text-decoration: line-through; font-size: 12px; margin-left: 6px; font-weight: 400; }
+  .tarjeta { font-size: 12px; color: var(--suave); }
+  .chips { display: flex; gap: 4px; flex-wrap: wrap; margin-top: auto; padding-top: 4px; }
+  .chip { font-size: 11px; padding: 2px 6px; border-radius: 5px; background: var(--panel2); color: var(--suave); }
+  .chip.dcto { background: var(--rojo); color: #fff; font-weight: 700; }
+  .chip.min { background: var(--verde); color: #08240f; font-weight: 700; }
+  .chip.aniv { background: #6b4bd8; color: #fff; }
+  .baja { color: var(--verde); font-size: 12px; } .sube { color: var(--rojo); font-size: 12px; }
+  .vacio { text-align: center; color: var(--suave); padding: 60px 10px; }
+  /* Modal */
+  .fondo { position: fixed; inset: 0; background: rgba(0,0,0,.65); display: none; align-items: center; justify-content: center;
+           z-index: 10; padding: 16px; }
+  .fondo.abierto { display: flex; }
+  .modal { background: var(--panel); border: 1px solid var(--borde); border-radius: 14px; width: min(860px, 100%);
+           max-height: 92vh; overflow: auto; padding: 18px; }
+  .modal h2 { font-size: 16px; margin: 0 30px 4px 0; }
+  .cerrar { float: right; background: none; border: 0; font-size: 22px; color: var(--suave); }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin: 12px 0; }
+  .stat { background: var(--panel2); border-radius: 8px; padding: 8px 10px; }
+  .stat b { display: block; font-size: 17px; } .stat span { color: var(--suave); font-size: 12px; }
+  .grafico { height: 320px; }
+  a { color: var(--azul); }
+  /* Alertas */
+  .panel-alertas { background: var(--panel); border: 1px solid var(--borde); border-radius: 12px; padding: 12px; margin-bottom: 14px; display: none; }
+  .panel-alertas.abierto { display: block; }
+  .alerta { padding: 6px 0; border-bottom: 1px solid var(--borde); font-size: 13px; }
+  .alerta:last-child { border: 0; }
+  @media (max-width: 600px) { .grilla { grid-template-columns: repeat(2, 1fr); gap: 8px; } .precio { font-size: 17px; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="fila">
+    <h1><span class="bola"></span> Rastreador Pokémon TCG</h1>
+    <span class="estado" id="estado">Cargando…</span>
+    <button id="btnAlertas">🔔 Alertas</button>
+    <button id="btnVigilar" title="Revisa la página 1 de las búsquedas clave (rápido)">⚡ Vigilar ahora</button>
+    <button id="btnCompleto" class="prim" title="Recorre todas las búsquedas y páginas (lento)">🔄 Barrido completo</button>
+  </div>
+  <div class="fila filtros">
+    <input type="search" id="q" placeholder="Buscar: etb, 30th, booster box, mega…">
+    <select id="tienda"><option value="">Todas las tiendas</option></select>
+    <select id="categoria"><option value="">Todas las categorías</option></select>
+    <select id="idioma"><option value="">Cualquier idioma</option><option>Español</option><option>Inglés</option></select>
+    <input type="number" id="precio_max" placeholder="Precio máx." min="0" step="1000" style="width:120px">
+    <select id="orden">
+      <option value="precio">Menor precio</option>
+      <option value="descuento">Mayor descuento</option>
+      <option value="cambio">Mayor baja reciente</option>
+      <option value="reciente">Más nuevos</option>
+      <option value="precio_desc">Mayor precio</option>
+      <option value="nombre">Nombre</option>
+    </select>
+    <label class="chk"><input type="checkbox" id="ofertas"> Solo ofertas</label>
+    <label class="chk"><input type="checkbox" id="aniversario"> 30 aniversario</label>
+    <label class="chk"><input type="checkbox" id="marcados"> ★ Marcados</label>
+  </div>
+</header>
+
+<main>
+  <div class="panel-alertas" id="panelAlertas"></div>
+  <div class="contador" id="contador"></div>
+  <div class="grilla" id="grilla"></div>
+</main>
+
+<div class="fondo" id="fondo">
+  <div class="modal">
+    <button class="cerrar" id="cerrar" aria-label="Cerrar">×</button>
+    <h2 id="mTitulo"></h2>
+    <div class="estado" id="mSub"></div>
+    <div class="stats" id="mStats"></div>
+    <div class="rangos" id="mRangos">
+      <button data-dias="7">7 días</button><button data-dias="30">30 días</button><button data-dias="0">Todo</button>
+    </div>
+    <div class="grafico"><canvas id="mGrafico"></canvas></div>
+    <p class="estado" id="mNota"></p>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const clp = n => n == null ? '—' : '$' + n.toLocaleString('es-CL');
+const COLORES = { falabella: 'var(--falabella)', paris: 'var(--paris)', ripley: 'var(--ripley)', lider: 'var(--lider)' };
+const NOMBRES = { falabella: 'Falabella', paris: 'Paris', ripley: 'Ripley', lider: 'Líder' };
+const FILTROS = ['q', 'tienda', 'categoria', 'idioma', 'precio_max', 'orden', 'ofertas', 'aniversario', 'marcados'];
+let grafico = null, temporizador = null;
+
+function leerFiltros() {
+  const p = new URLSearchParams();
+  for (const f of FILTROS) {
+    const el = $(f);
+    const v = el.type === 'checkbox' ? (el.checked ? 'true' : '') : el.value.trim();
+    if (v) p.set(f, v);
+  }
+  try { localStorage.setItem('filtros', p.toString()); } catch (e) {}
+  return p;
+}
+
+function restaurarFiltros() {
+  let guardado = '';
+  try { guardado = localStorage.getItem('filtros') || ''; } catch (e) {}
+  const p = new URLSearchParams(guardado);
+  for (const f of FILTROS) {
+    if (!p.has(f)) continue;
+    const el = $(f);
+    if (el.type === 'checkbox') el.checked = p.get(f) === 'true'; else { el.value = p.get(f); el.dataset.pendiente = p.get(f); }
+  }
+}
+
+async function cargarResumen() {
+  const r = await fetch('/api/resumen').then(r => r.json());
+  for (const [sel, lista, nombre] of [['tienda', r.tiendas, t => NOMBRES[t] || t], ['categoria', r.categorias, c => c]]) {
+    const el = $(sel), actual = el.dataset.pendiente || el.value;
+    el.length = 1;
+    for (const v of lista) el.add(new Option(nombre(v), v));
+    el.value = actual;
+    delete el.dataset.pendiente;
+  }
+  const u = r.ultima;
+  $('estado').textContent = r.actualizando ? '⏳ Actualizando precios…'
+    : u ? `${r.total} productos · ${r.marcados} marcados · última revisión ${u.fin.replace('T', ' ').slice(0, 16)} (${u.modo || 'completo'})`
+    : 'Sin datos aún: haz un barrido completo';
+  $('btnVigilar').disabled = $('btnCompleto').disabled = r.actualizando;
+  $('panelAlertas').innerHTML = '<b>Últimas alertas</b>' + (r.alertas.length ? r.alertas.map(a => `
+    <div class="alerta">${a.fecha_hora.replace('T', ' ').slice(0, 16)} · <b>${NOMBRES[a.tienda]}</b> ·
+      ${{ baja: '📉 Baja', minimo: '🏆 Mínimo histórico', nuevo: '🆕 Nuevo' }[a.tipo] || a.tipo}
+      ${a.precio_anterior ? clp(a.precio_anterior) + ' → ' : ''}${clp(a.precio)} ·
+      <a href="${a.url}" target="_blank" rel="noopener">${a.nombre}</a></div>`).join('')
+    : '<div class="alerta">Todavía no hay alertas.</div>');
+  return r;
+}
+
+async function cargarProductos() {
+  const datos = await fetch('/api/productos?' + leerFiltros()).then(r => r.json());
+  $('contador').textContent = `${datos.length} producto(s)`;
+  $('grilla').innerHTML = datos.length ? datos.map(tarjeta).join('')
+    : '<div class="vacio">No hay productos con esos filtros.</div>';
+}
+
+function tarjeta(p) {
+  const cambio = p.cambio < 0 ? `<span class="baja">▼ ${clp(-p.cambio)} vs. antes</span>`
+               : p.cambio > 0 ? `<span class="sube">▲ ${clp(p.cambio)} vs. antes</span>` : '';
+  return `<div class="card ${p.marcado ? 'marcado' : ''}" data-id="${p.id}">
+    <div class="img">${p.imagen ? `<img src="${p.imagen}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}</div>
+    <span class="tienda" style="background:${COLORES[p.tienda]}">${NOMBRES[p.tienda] || p.tienda}</span>
+    <button class="estrella" data-marcar="${p.id}" title="${p.marcado ? 'Quitar de marcados' : 'Marcar para seguir'}">${p.marcado ? '★' : '☆'}</button>
+    <div class="info">
+      <div class="nombre" title="${p.nombre}">${p.nombre}</div>
+      <div class="precio">${clp(p.precio)}${p.precio_normal && p.precio_normal > p.precio ? `<span class="normal">${clp(p.precio_normal)}</span>` : ''}</div>
+      ${p.precio_tarjeta ? `<div class="tarjeta">💳 Con tarjeta: <b>${clp(p.precio_tarjeta)}</b></div>` : ''}
+      ${cambio}
+      <div class="chips">
+        ${p.descuento_pct ? `<span class="chip dcto">-${p.descuento_pct}%</span>` : ''}
+        ${p.es_minimo ? '<span class="chip min">Mínimo histórico</span>' : ''}
+        ${p.aniversario30 ? '<span class="chip aniv">30 aniversario</span>' : ''}
+        <span class="chip">${p.categoria}</span>
+        ${p.idioma ? `<span class="chip">${p.idioma}</span>` : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
+let modalDatos = null, rangoDias = 7;
+const isoDia = d => d.toISOString().slice(0, 10);
+
+async function abrirModal(id) {
+  modalDatos = await fetch(`/api/productos/${id}/historial`).then(r => r.json());
+  const p = modalDatos.producto;
+  $('mTitulo').innerHTML = `${p.nombre} <a href="${p.url}" target="_blank" rel="noopener">ver en ${NOMBRES[p.tienda]} ↗</a>`;
+  $('mSub').textContent = `${NOMBRES[p.tienda]} · ${p.categoria}${p.vendedor ? ' · vendido por ' + p.vendedor : ''} · visto desde ${p.primera_vez.slice(0, 10)}`
+    + (p.marcado ? ` · ★ marcado desde ${(p.marcado_en || '').slice(0, 10)}` : '');
+  dibujar();
+}
+
+// Puntos del rango, con un lugar para cada día (los días sin dato quedan vacíos y la línea los une).
+function puntosDelRango(todos) {
+  if (!rangoDias) return todos;
+  const porFecha = Object.fromEntries(todos.map(x => [x.fecha, x]));
+  const hoy = new Date(todos[todos.length - 1].fecha + 'T12:00:00');
+  const dias = [];
+  for (let i = rangoDias - 1; i >= 0; i--) {
+    const f = isoDia(new Date(hoy.getTime() - i * 864e5));
+    dias.push(porFecha[f] || { fecha: f, precio: null, precio_normal: null, precio_tarjeta: null });
+  }
+  return dias;
+}
+
+function dibujar() {
+  const todos = modalDatos.puntos;
+  const puntos = puntosDelRango(todos);
+  const conDato = puntos.filter(x => x.precio != null);
+  const ult = todos[todos.length - 1];
+  const min = Math.min(...conDato.map(x => x.precio)), max = Math.max(...conDato.map(x => x.precio));
+  const minHist = Math.min(...todos.map(x => x.precio));
+  // Precio de hace 7 días (o el más cercano anterior a esa fecha).
+  const limite = isoDia(new Date(new Date(ult.fecha + 'T12:00:00').getTime() - 7 * 864e5));
+  const hace7 = [...todos].reverse().find(x => x.fecha <= limite);
+  let comp = '<b>—</b>';
+  if (hace7) {
+    const dif = ult.precio - hace7.precio, pct = Math.round(dif * 100 / hace7.precio);
+    comp = dif === 0 ? '<b>Igual</b>'
+      : `<b style="color:var(${dif < 0 ? '--verde' : '--rojo'})">${dif < 0 ? '▼' : '▲'} ${clp(Math.abs(dif))} (${pct > 0 ? '+' : ''}${pct}%)</b>`;
+  }
+  const etiquetaRango = rangoDias ? `${rangoDias} días` : 'todo';
+  $('mStats').innerHTML = `
+    <div class="stat"><span>Actual</span><b>${clp(ult.precio)}</b></div>
+    <div class="stat"><span>vs. hace 7 días</span>${comp}</div>
+    <div class="stat"><span>Mínimo (${etiquetaRango})</span><b style="color:var(--verde)">${clp(min)}</b></div>
+    <div class="stat"><span>Máximo (${etiquetaRango})</span><b style="color:var(--rojo)">${clp(max)}</b></div>
+    <div class="stat"><span>Mínimo histórico</span><b>${clp(minHist)}</b></div>`;
+  for (const b of document.querySelectorAll('#mRangos button')) b.classList.toggle('activo', +b.dataset.dias === rangoDias);
+  $('mNota').textContent = todos.length < 2
+    ? 'Recién empezamos a registrar este producto: el gráfico se irá llenando día a día.'
+    : !hace7 ? `Llevamos ${todos.length} día(s) registrados: la comparación con hace 7 días aparece cuando se cumpla una semana.` : '';
+  const serie = (label, campo, color, dash) => ({
+    label, data: puntos.map(x => x[campo]), borderColor: color, backgroundColor: color,
+    borderDash: dash || [], tension: .25, pointRadius: 3, spanGaps: true,
+  });
+  const css = getComputedStyle(document.documentElement);
+  const series = [serie('Precio', 'precio', css.getPropertyValue('--acento'))];
+  if (puntos.some(x => x.precio_normal)) series.push(serie('Precio normal', 'precio_normal', css.getPropertyValue('--suave'), [5, 4]));
+  if (puntos.some(x => x.precio_tarjeta)) series.push(serie('Con tarjeta', 'precio_tarjeta', css.getPropertyValue('--verde')));
+  if (grafico) grafico.destroy();
+  $('fondo').classList.add('abierto');  // primero visible, para que el canvas tenga tamaño
+  grafico = new Chart($('mGrafico'), {
+    type: 'line',
+    data: { labels: puntos.map(x => x.fecha.slice(5).split('-').reverse().join('/')), datasets: series },
+    options: {
+      maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { labels: { color: '#e8eaf3' } },
+                 tooltip: { callbacks: { label: c => `${c.dataset.label}: ${clp(c.parsed.y)}` } } },
+      scales: { x: { ticks: { color: '#9aa1bd' }, grid: { color: '#2c3250' } },
+                y: { ticks: { color: '#9aa1bd', callback: v => clp(v) }, grid: { color: '#2c3250' } } },
+    },
+  });
+}
+
+async function marcar(id, boton) {
+  const card = boton.closest('.card');
+  const nuevo = !card.classList.contains('marcado');
+  await fetch(`/api/productos/${id}/marcar`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                               body: JSON.stringify({ marcado: nuevo }) });
+  card.classList.toggle('marcado', nuevo);
+  boton.textContent = nuevo ? '★' : '☆';
+  cargarResumen();
+}
+
+async function actualizar(modo) {
+  const r = await fetch('/api/actualizar?modo=' + modo, { method: 'POST' }).then(r => r.json());
+  if (!r.ok) alert(r.mensaje);
+  esperarFin();
+}
+
+async function esperarFin() {
+  const r = await cargarResumen();
+  if (r.actualizando) { setTimeout(esperarFin, 5000); } else { cargarProductos(); }
+}
+
+$('grilla').addEventListener('click', e => {
+  const b = e.target.closest('[data-marcar]');
+  if (b) { e.stopPropagation(); return marcar(b.dataset.marcar, b); }
+  const c = e.target.closest('.card');
+  if (c) abrirModal(c.dataset.id);
+});
+$('mRangos').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (b) { rangoDias = +b.dataset.dias; dibujar(); }
+});
+$('cerrar').onclick =() => $('fondo').classList.remove('abierto');
+$('fondo').onclick = e => { if (e.target === $('fondo')) $('fondo').classList.remove('abierto'); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape') $('fondo').classList.remove('abierto'); });
+$('btnVigilar').onclick = () => actualizar('vigilancia');
+$('btnCompleto').onclick = () => actualizar('completo');
+$('btnAlertas').onclick = () => $('panelAlertas').classList.toggle('abierto');
+for (const f of FILTROS) $(f).addEventListener(f === 'q' || f === 'precio_max' ? 'input' : 'change', () => {
+  clearTimeout(temporizador); temporizador = setTimeout(cargarProductos, 250);
+});
+
+restaurarFiltros();
+cargarResumen().then(r => { if (r.actualizando) esperarFin(); });
+cargarProductos();
+</script>
+</body>
+</html>

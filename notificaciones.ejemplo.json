@@ -1,0 +1,25 @@
+{
+  "_ayuda": "Copia este archivo como notificaciones.json y completa SOLO los canales que quieras usar (activo: true). Ver LEEME.md.",
+  "umbral_baja_pct": 5,
+  "avisar_cualquier_baja_si_marcado": true,
+  "avisar_minimo_historico": true,
+  "avisar_productos_nuevos": true,
+  "telegram": {
+    "activo": false,
+    "token": "TOKEN_QUE_TE_DA_BOTFATHER",
+    "chat_id": "TU_CHAT_ID"
+  },
+  "correo": {
+    "activo": false,
+    "smtp": "smtp.gmail.com",
+    "puerto": 465,
+    "usuario": "tucorreo@gmail.com",
+    "clave_app": "CLAVE_DE_APLICACION_DE_16_LETRAS",
+    "para": "tucorreo@gmail.com"
+  },
+  "whatsapp_callmebot": {
+    "activo": false,
+    "telefono": "+569XXXXXXXX",
+    "apikey": "APIKEY_QUE_TE_DA_CALLMEBOT"
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "_ayuda": "Cada 'tema' es una sección de la página. Solo se guardan productos que pasen su filtro. Para rastrear otra cosa, agrega un tema nuevo (y tú decides cuándo activarlo con 'activo').",
+  "_ayuda_tiendas": "Ripley (Cloudflare 403) y Líder (CAPTCHA 'Robot or human?') bloquean navegadores automatizados, por eso están desactivadas. No se intenta saltar esos bloqueos.",
+  "tiendas_activas": ["falabella", "paris"],
+  "paginas_max_por_busqueda": 4,
+  "pausa_segundos_entre_paginas": [3, 6],
+  "_ayuda_vigilancia": "La vigilancia rápida (cada 30 min) solo mira la página 1 de las búsquedas 'vigilancia' de cada tema, para detectar bajas sin hacer muchas consultas.",
+  "paginas_vigilancia": 1,
+  "temas": [
+    {
+      "nombre": "Pokémon TCG",
+      "id": "pokemon",
+      "activo": true,
+      "busquedas": [
+        "pokemon tcg",
+        "pokemon elite trainer box",
+        "pokemon booster",
+        "pokemon 30th celebration",
+        "cartas pokemon"
+      ],
+      "vigilancia": ["pokemon tcg", "pokemon 30th celebration"],
+      "debe_contener_alguna": ["pokemon", "pokémon"],
+      "y_alguna_de": [
+        "tcg", "booster", "elite trainer", "etb", "tin", "collection", "colección", "coleccion",
+        "deck", "mazo", "sobre", "cartas", "blister", "bundle", "display", "premium",
+        "toolkit", "battle", "starter", "30th", "celebration", "binder", "carpeta", "build & battle"
+      ],
+      "excluir": [
+        "peluche", "figura", "polera", "mochila", "nintendo switch", "videojuego", "juego switch",
+        "lonchera", "estuche", "disfraz", "lego", "funko", "taza", "pijama", "llavero", "squishmallow",
+        "uno", "recuerdos de fiesta", "piñata", "cumpleaños", "memorice", "dominó", "naipe ingles"
+      ]
+    },
+    {
+      "nombre": "Nintendo Switch 2",
+      "id": "switch2",
+      "activo": true,
+      "_ayuda": "Solo la consola (sola o en pack con juego). Se excluyen juegos sueltos y accesorios.",
+      "busquedas": ["consola nintendo switch 2", "nintendo switch 2", "switch 2 bundle"],
+      "vigilancia": ["consola nintendo switch 2"],
+      "debe_contener_alguna": ["switch 2", "switch2"],
+      "regex_incluir": [
+        "\\bconsola\\b",
+        "^\\s*(nintendo\\s+)?switch\\s*2\\s*$",
+        "^\\s*(nintendo\\s+)?switch\\s*2\\s+(bundle|pack|mario kart|mkw|pok[eé]mon|\\+)"
+      ],
+      "excluir": [
+        "switch 1", "oled", "lite", "cámara", "camara", "control", "joy con", "joy-con", "joycon",
+        "funda", "estuche", "mica", "protector", "cargador", "dock", "carcasa", "case", "lámina",
+        "vidrio", "soporte", "grip", "audífonos", "audifonos", "memoria", "microsd", "amiibo", "acc"
+      ],
+      "categorias": [
+        ["Pack con juego", "\\+|\\bpack\\b|bundle|\\bmkw\\b|mario kart|pok[eé]mon|donkey|zelda"],
+        ["Consola sola", "."]
+      ]
+    }
+  ]
+}
