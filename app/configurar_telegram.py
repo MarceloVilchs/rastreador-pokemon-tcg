@@ -1,13 +1,15 @@
 """Asistente de Telegram: busca tu chat_id con el token de notificaciones.json, lo guarda y envía una prueba.
 
-Antes: pega el token en notificaciones.json y escríbele cualquier mensaje a tu bot.
-Uso:   python -m app.configurar_telegram
+Antes: pega el token en notificaciones.json (o pásalo con --token) y escríbele cualquier mensaje a tu bot.
+Uso:   python -m app.configurar_telegram [--token TOKEN]
 """
+import argparse
 import json
+import shutil
 import urllib.error
 import urllib.request
 
-from app.notificar import ARCHIVO, enviar
+from app.notificar import ARCHIVO, RAIZ, enviar
 
 
 def _api(token: str, metodo: str) -> dict:
@@ -15,9 +17,14 @@ def _api(token: str, metodo: str) -> dict:
         return json.load(r)
 
 
-def main() -> None:
+def main(token_nuevo: str | None = None) -> None:
+    if not ARCHIVO.exists():
+        shutil.copy(RAIZ / "notificaciones.ejemplo.json", ARCHIVO)
     conf = json.loads(ARCHIVO.read_text(encoding="utf-8"))
     tg = conf.setdefault("telegram", {})
+    if token_nuevo:
+        tg.update({"token": token_nuevo.strip().replace(" ", ""), "activo": True})
+        ARCHIVO.write_text(json.dumps(conf, ensure_ascii=False, indent=2), encoding="utf-8")
     token = tg.get("token", "").strip()
     if not token or "BOTFATHER" in token:
         print("Falta el token: pégalo en notificaciones.json -> telegram -> token")
@@ -58,4 +65,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--token", help="token de BotFather (se guarda en notificaciones.json)")
+    main(ap.parse_args().token)

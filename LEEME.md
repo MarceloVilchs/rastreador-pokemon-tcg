@@ -1,7 +1,21 @@
-# Rastreador Pokémon TCG
+# Rastreador de ofertas (Pokémon TCG + Nintendo Switch 2)
 
-Rastrea precios de cartas Pokémon (ETB, boosters, tins, colecciones, 30 aniversario…) en
-**Falabella y Paris**, guarda el histórico diario y te avisa al celular cuando algo baja.
+Rastrea precios de cartas Pokémon (ETB, boosters, tins, colecciones, 30 aniversario…) y de la consola
+Nintendo Switch 2 en **Falabella y Paris**, guarda el histórico diario y te avisa al celular cuando algo baja.
+
+## Instalar en un PC nuevo (un clic)
+
+1. Clona o copia la carpeta.
+2. **Doble clic en `iniciar.bat`.** La primera vez instala todo solo (Python si falta, librerías y Chromium),
+   te pide el token de Telegram (opcional), pregunta si programar las tareas automáticas y si hacer el primer
+   barrido. Las siguientes veces solo abre la página.
+
+Lo que **no** viaja por GitHub (a propósito) y conviene copiar a mano desde el PC antiguo:
+- `notificaciones.json` (tu token de Telegram, es privado). Si no lo copias, el instalador te pide el token.
+- `datos/precios.db` (tu historial de precios). Si no lo copias, el historial parte de cero.
+
+⚠️ Programa las tareas automáticas en **un solo PC**; si corren en dos, te llegarán alertas duplicadas.
+Para reconfigurar Telegram: `configurar_telegram.bat`. Para reinstalar librerías: `instalar.bat`.
 
 > **Ripley y Líder** están desactivadas: Ripley responde 403 (Cloudflare) y Líder muestra un CAPTCHA
 > "Robot or human?" a navegadores automatizados. El proyecto no intenta saltar esos bloqueos. Sus lectores
@@ -14,7 +28,7 @@ Rastrea precios de cartas Pokémon (ETB, boosters, tins, colecciones, 30 anivers
 | Abrir la página | Doble clic en `iniciar.bat` → se abre http://localhost:8000 |
 | Barrido completo (todas las búsquedas) | Botón **🔄 Barrido completo** o `barrido.bat` |
 | Vigilancia rápida (solo pág. 1, para detectar bajas) | Botón **⚡ Vigilar ahora** o `vigilar.bat` |
-| Automatizar (diario + cada 30 min) | Clic derecho en `programar_tareas.ps1` → *Ejecutar con PowerShell* |
+| Automatizar (diario + cada 30 min) | Lo ofrece el instalador, o clic derecho en `programar_tareas.ps1` → *Ejecutar con PowerShell* |
 
 En la página: haz clic en ☆ para **marcar** un producto y en la tarjeta para ver el **gráfico de precios**
 (rango 7 días / 30 días / todo, y comparación con hace 7 días).
